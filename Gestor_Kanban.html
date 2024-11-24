@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini Gestor de Proyectos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .kanban-column {
+            border: 2px solid #4a5568;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .kanban-column .tasks {
+            width: 100%;
+            min-height: 200px;
+            background-color: #2d3748;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .task {
+            background: #4299e1;
+            color: white;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+        .task:active {
+            cursor: grabbing;
+        }
+        .kanban-container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            border: 2px solid #4a5568;
+            border-radius: 1rem;
+            padding: 2rem;
+            background-color: #1a202c;
+        }
+        input {
+            color: white;
+            background-color: #2d3748;
+            border: 1px solid #4a5568;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        input::placeholder {
+            color: #a0aec0;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="kanban-container">
+        <h1 class="text-3xl font-bold text-center mb-6">Mini Gestor de Proyectos</h1>
+        <button id="addProjectBtn" class="mb-6 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 block mx-auto">Nuevo Proyecto</button>
+        <div class="grid grid-cols-3 gap-4">
+            <div id="todo" class="kanban-column" ondragover="allowDrop(event)" ondrop="drop(event)">
+                <h2 class="text-xl font-bold">Por Hacer</h2>
+                <div class="tasks"></div>
+            </div>
+            <div id="inProgress" class="kanban-column" ondragover="allowDrop(event)" ondrop="drop(event)">
+                <h2 class="text-xl font-bold">En Progreso</h2>
+                <div class="tasks"></div>
+            </div>
+            <div id="completed" class="kanban-column" ondragover="allowDrop(event)" ondrop="drop(event)">
+                <h2 class="text-xl font-bold">Completado</h2>
+                <div class="tasks"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding tasks -->
+    <div id="modal" class="modal">
+        <div class="bg-gray-800 p-6 rounded shadow-lg w-1/3">
+            <button id="closeModal" class="text-white float-right text-xl font-bold">X</button>
+            <h2 id="modalTitle" class="text-2xl font-bold mb-4">Nuevo Proyecto</h2>
+            <input id="taskInput" type="text" class="w-full p-2 mb-4 rounded" placeholder="Nuevo proyecto" />
+            <button id="addTaskBtn" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 w-full">Guardar</button>
+        </div>
+    </div>
+
+    <!-- Modal for sub-tasks -->
+    <div id="subTaskModal" class="modal">
+        <div class="bg-gray-800 p-6 rounded shadow-lg w-1/3">
+            <button id="closeSubTaskModal" class="text-white float-right text-xl font-bold">X</button>
+            <h2 id="subTaskModalTitle" class="text-2xl font-bold mb-4">Añadir Tareas</h2>
+            <input id="subTaskInput" type="text" class="w-full p-2 mb-4 rounded" placeholder="Nueva tarea" />
+            <button id="addSubTaskBtn" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 w-full">Añadir Tarea</button>
+            <ul id="subTaskList" class="mt-4 text-white list-disc list-inside"></ul>
+            <button id="deleteProjectBtn" class="mt-6 px-4 py-2 bg-red-600 rounded hover:bg-red-700 w-full">Eliminar Proyecto</button>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById('modal');
+        const addProjectBtn = document.getElementById('addProjectBtn');
+        const closeModal = document.getElementById('closeModal');
+        const addTaskBtn = document.getElementById('addTaskBtn');
+        const taskInput = document.getElementById('taskInput');
+
+        const subTaskModal = document.getElementById('subTaskModal');
+        const closeSubTaskModal = document.getElementById('closeSubTaskModal');
+        const subTaskInput = document.getElementById('subTaskInput');
+        const addSubTaskBtn = document.getElementById('addSubTaskBtn');
+        const subTaskList = document.getElementById('subTaskList');
+        const deleteProjectBtn = document.getElementById('deleteProjectBtn');
+        let currentTaskElement = null;
+
+        // Open main modal
+        addProjectBtn.addEventListener('click', () => {
+            modal.classList.add('active');
+        });
+
+        // Close main modal
+        closeModal.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+
+        // Add project (task)
+        addTaskBtn.addEventListener('click', () => {
+            const taskName = taskInput.value.trim();
+            if (taskName) {
+                const task = document.createElement('div');
+                task.className = 'task';
+                task.textContent = taskName;
+                task.draggable = true;
+                task.id = 'task-' + Date.now();
+                task.ondragstart = drag;
+                task.onclick = () => openSubTaskModal(task);
+                document.querySelector('#todo .tasks').appendChild(task);
+                taskInput.value = '';
+                modal.classList.remove('active');
+            }
+        });
+
+        // Open sub-task modal
+        function openSubTaskModal(taskElement) {
+            currentTaskElement = taskElement;
+            subTaskModal.classList.add('active');
+            subTaskModalTitle.textContent = `Añadir Tareas: ${taskElement.textContent}`;
+            updateSubTaskList();
+        }
+
+        // Close sub-task modal
+        closeSubTaskModal.addEventListener('click', () => {
+            subTaskModal.classList.remove('active');
+        });
+
+        // Add sub-task
+        addSubTaskBtn.addEventListener('click', () => {
+            const subTaskName = subTaskInput.value.trim();
+            if (subTaskName) {
+                const subTaskItem = document.createElement('li');
+                subTaskItem.textContent = subTaskName;
+                subTaskList.appendChild(subTaskItem);
+                subTaskInput.value = '';
+            }
+        });
+
+        // Delete project
+        deleteProjectBtn.addEventListener('click', () => {
+            if (currentTaskElement) {
+                currentTaskElement.remove();
+                subTaskModal.classList.remove('active');
+            }
+        });
+
+        // Drag and drop logic
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drag(event) {
+            event.dataTransfer.setData("text", event.target.id);
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const taskId = event.dataTransfer.getData("text");
+            const task = document.getElementById(taskId);
+            const targetColumn = event.target.closest('.kanban-column').querySelector('.tasks');
+            targetColumn.appendChild(task);
+        }
+    </script>
+</body>
+</html>
